@@ -11,7 +11,7 @@ import (
 
 func TestProcessorListener(t *testing.T) {
 
-	const testDir = "testdata"
+	//const testDir = "testdata"
 
 	processor := ld.NewJsonLdProcessor()
 	options := ld.NewJsonLdOptions("")
