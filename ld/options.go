@@ -68,7 +68,7 @@ type JsonLdOptions struct { //nolint:stylecheck
 
 	// User hooks to Processor Events
 	Listener ProcessorListener
-	SafeMode      bool
+	SafeMode bool
 }
 
 // NewJsonLdOptions creates and returns new instance of JsonLdOptions with the given base.
@@ -119,10 +119,7 @@ func (opt *JsonLdOptions) Copy() *JsonLdOptions {
 		Algorithm:             opt.Algorithm,
 		UseNamespaces:         opt.UseNamespaces,
 		OutputForm:            opt.OutputForm,
-<<<<<<< HEAD
 		Listener:              opt.Listener,
-=======
 		SafeMode:              opt.SafeMode,
->>>>>>> 257ca0d016c1705dfc132c0dbe2041289971bfeb
 	}
 }
