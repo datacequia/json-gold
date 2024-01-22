@@ -92,11 +92,8 @@ func NewJsonLdOptions(base string) *JsonLdOptions { //nolint:stylecheck
 		Algorithm:             AlgorithmURGNA2012,
 		UseNamespaces:         false,
 		OutputForm:            "",
-<<<<<<< HEAD
 		Listener:              nil,
-=======
 		SafeMode:              false,
->>>>>>> 257ca0d016c1705dfc132c0dbe2041289971bfeb
 	}
 }
 
