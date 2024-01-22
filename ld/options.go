@@ -65,6 +65,9 @@ type JsonLdOptions struct {
 	Algorithm     string
 	UseNamespaces bool
 	OutputForm    string
+
+	// User hooks to Processor Events
+	Listener ProcessorListener
 }
 
 // NewJsonLdOptions creates and returns new instance of JsonLdOptions with the given base.
@@ -88,6 +91,7 @@ func NewJsonLdOptions(base string) *JsonLdOptions {
 		Algorithm:             "URGNA2012",
 		UseNamespaces:         false,
 		OutputForm:            "",
+		Listener:              nil,
 	}
 }
 
@@ -113,5 +117,6 @@ func (opt *JsonLdOptions) Copy() *JsonLdOptions {
 		Algorithm:             opt.Algorithm,
 		UseNamespaces:         opt.UseNamespaces,
 		OutputForm:            opt.OutputForm,
+		Listener:              opt.Listener,
 	}
 }

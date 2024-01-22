@@ -968,6 +968,17 @@ func (c *Context) createTermDefinition(context map[string]interface{}, term stri
 	// 18)
 	c.termDefinitions[term] = definition
 
+	// invoke Listener for TermDef if supplied by user
+	if c.options.Listener != nil && len(term) > 0 && definition != nil {
+
+		termVal := &TermValue{}
+		termVal.copy(definition)
+
+		termDef := newTermDefinition(term, *termVal /* pass by value*/)
+
+		c.options.Listener.OnTermDefinition(termDef)
+	}
+
 	return nil
 }
 
