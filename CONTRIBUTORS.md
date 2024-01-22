@@ -5,5 +5,9 @@ This library was originally written by Stan Nazarenko (@kazarena) with Pull Requ
 * Koala Yeung (@yookoala)
 * Koushik Roy (@Koshroy)
 * Joel Gustafson (@joeltg)
+* Dmitriy Kinoshenko (@kdimak)
+* Andrew Ortman (@andrewortman)
+* Abdulbois (@Abdulbois)
+* @wijatplay3
 
 All future contributors will be recorded in this file.

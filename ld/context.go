@@ -15,6 +15,7 @@
 package ld
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -23,7 +24,8 @@ import (
 
 var (
 	ignoredKeywordPattern = regexp.MustCompile("^@[a-zA-Z]+$")
-	invalidPrefixPattern  = regexp.MustCompile(":|/")
+	invalidPrefixPattern  = regexp.MustCompile("[:/]")
+	iriLikeTermPattern    = regexp.MustCompile(`(?::[^:])|/`)
 
 	nonTermDefKeys = map[string]bool{
 		"@base":      true,
@@ -121,7 +123,8 @@ func (c *Context) Parse(localContext interface{}) (*Context, error) {
 // If parsingARemoteContext is true, localContext represents a remote context
 // that has been parsed and sent into this method. This must be set to know
 // whether to propagate the @base key from the context to the result.
-func (c *Context) parse(localContext interface{}, remoteContexts []string, parsingARemoteContext, propagate, protected, overrideProtected bool) (*Context, error) {
+func (c *Context) parse(localContext interface{}, remoteContexts []string, parsingARemoteContext, propagate,
+	protected, overrideProtected bool) (*Context, error) { //nolint:unparam
 
 	// normalize local context to an array of @context objects
 	contexts := Arrayify(localContext)
@@ -188,7 +191,7 @@ func (c *Context) parse(localContext interface{}, remoteContexts []string, parsi
 			rd, err := c.options.DocumentLoader.LoadDocument(uri)
 			if err != nil {
 				return nil, NewJsonLdError(LoadingRemoteContextFailed,
-					fmt.Sprintf("Dereferencing a URL did not result in a valid JSON-LD context: %s", uri))
+					fmt.Errorf("dereferencing a URL did not result in a valid JSON-LD context (%s): %w", uri, err))
 			}
 			remoteContextMap, isMap := rd.Document.(map[string]interface{})
 			context, hasContextKey := remoteContextMap["@context"]
@@ -213,6 +216,14 @@ func (c *Context) parse(localContext interface{}, remoteContexts []string, parsi
 		default:
 			// 3.3
 			return nil, NewJsonLdError(InvalidLocalContext, context)
+		}
+
+		// dereference @context key if present
+		if nestedContext := contextMap["@context"]; nestedContext != nil {
+			contextMap, isMap = nestedContext.(map[string]interface{})
+			if !isMap {
+				return nil, NewJsonLdError(InvalidLocalContext, nestedContext)
+			}
 		}
 
 		pm, hasProcessingMode := c.values["processingMode"]
@@ -249,7 +260,7 @@ func (c *Context) parse(localContext interface{}, remoteContexts []string, parsi
 			rd, err := c.options.DocumentLoader.LoadDocument(uri)
 			if err != nil {
 				return nil, NewJsonLdError(LoadingRemoteContextFailed,
-					fmt.Sprintf("Dereferencing a URL did not result in a valid JSON-LD context: %s", uri))
+					fmt.Errorf("dereferencing a URL did not result in a valid JSON-LD context (%s): %w", uri, err))
 			}
 			importCtxDocMap, isMap := rd.Document.(map[string]interface{})
 			context, hasContextKey := importCtxDocMap["@context"]
@@ -393,7 +404,7 @@ func (c *Context) CompactValue(activeProperty string, value map[string]interface
 	isIndexContainer := c.HasContainerMapping(activeProperty, "@index")
 	// whether or not the value has an @index that must be preserved
 	_, hasIndex := value["@index"]
-	idVal, hasId := value["@id"]
+	idVal, hasID := value["@id"]
 	typeVal, hasType := value["@type"]
 	//preserveIndex := hasIndex && !isIndexContainer
 
@@ -411,7 +422,7 @@ func (c *Context) CompactValue(activeProperty string, value map[string]interface
 	directionVal := value["@direction"]
 	var err error
 
-	if hasId && idOrIndex { // 4
+	if hasID && idOrIndex { // 4
 		if propType == "@id" { // 4.1
 			result, err = c.CompactIri(idVal.(string), nil, false, false)
 			if err != nil {
@@ -574,11 +585,9 @@ func (c *Context) createTermDefinition(context map[string]interface{}, term stri
 		} else {
 			return NewJsonLdError(KeywordRedefinition, term)
 		}
-	} else {
-		if ignoredKeywordPattern.Match([]byte(term)) {
-			//log.Printf("Terms beginning with '@' are reserved for future use and ignored: %s.", term)
-			return nil
-		}
+	} else if ignoredKeywordPattern.MatchString(term) {
+		//log.Printf("Terms beginning with '@' are reserved for future use and ignored: %s.", term)
+		return nil
 	}
 
 	// keep reference to previous mapping for potential `@protected` check
@@ -642,7 +651,7 @@ func (c *Context) createTermDefinition(context map[string]interface{}, term stri
 				"@context @reverse value must be an absolute IRI or a blank node identifier, got %s", id))
 		}
 
-		if ignoredKeywordPattern.Match([]byte(reverseStr)) {
+		if ignoredKeywordPattern.MatchString(reverseStr) {
 			//log.Printf("Values beginning with '@' are reserved for future use and ignored: %s.", reverseStr)
 			return nil
 		}
@@ -657,7 +666,7 @@ func (c *Context) createTermDefinition(context map[string]interface{}, term stri
 
 		if term != idStr {
 
-			if !IsKeyword(idStr) && ignoredKeywordPattern.Match([]byte(idStr)) {
+			if !IsKeyword(idStr) && ignoredKeywordPattern.MatchString(idStr) {
 				//log.Printf("Values beginning with '@' are reserved for future use and ignored: %s.", idStr)
 				return nil
 			}
@@ -672,8 +681,7 @@ func (c *Context) createTermDefinition(context map[string]interface{}, term stri
 				}
 				definition["@id"] = res
 
-				var checkRegex = regexp.MustCompile(`(?::[^:])|\/`)
-				if checkRegex.Match([]byte(term)) {
+				if iriLikeTermPattern.MatchString(term) {
 					defined[term] = true
 					termIRI, err := c.ExpandIri(term, false, true, context, defined)
 					if err != nil {
@@ -687,13 +695,23 @@ func (c *Context) createTermDefinition(context map[string]interface{}, term stri
 					delete(defined, term)
 				}
 
-				var regexExp = regexp.MustCompile(`.*[:/\?#\[\]@]$`)
 				// NOTE: definition["_prefix"] is implemented in Python and JS libraries as follows:
 				//
-				// definition["_prefix"] = !termHasColon && regexExp.Match([]byte(res)) && (simpleTerm || c.processingMode(1.0))
+				// definition["_prefix"] = !termHasColon && regexExp.MatchString(res) && (simpleTerm || c.processingMode(1.0))
 				//
 				// but the test https://json-ld.org/test-suite/tests/compact-manifest.jsonld#t0038 fails. TODO investigate
-				definition["_prefix"] = !termHasColon && (regexExp.Match([]byte(res)) && simpleTerm || c.processingMode(1.0))
+
+				termHasSuffix := false
+				if len(res) > 0 {
+					switch res[len(res)-1] {
+					case ':', '/', '?', '#', '[', ']', '@':
+						termHasSuffix = true
+					default:
+						termHasSuffix = false
+					}
+				}
+
+				definition["_prefix"] = !termHasColon && termHasSuffix && (simpleTerm || c.processingMode(1.0))
 			} else {
 				return NewJsonLdError(InvalidIRIMapping,
 					"resulting IRI mapping should be a keyword, absolute IRI or blank node")
@@ -749,7 +767,8 @@ func (c *Context) createTermDefinition(context map[string]interface{}, term stri
 			var err error
 			typeStr, err = c.ExpandIri(typeStr, false, true, context, defined)
 			if err != nil {
-				if err.(*JsonLdError).Code != InvalidIRIMapping {
+				var ldErr *JsonLdError
+				if ok := errors.As(err, &ldErr); !ok || ldErr.Code != InvalidIRIMapping {
 					return err
 				}
 				return NewJsonLdError(InvalidTypeMapping, typeStr)
@@ -911,7 +930,7 @@ func (c *Context) createTermDefinition(context map[string]interface{}, term stri
 
 	// term may be used as prefix
 	if prefixVal, hasPrefix := val["@prefix"]; hasPrefix {
-		if invalidPrefixPattern.Match([]byte(term)) {
+		if invalidPrefixPattern.MatchString(term) {
 			return NewJsonLdError(InvalidTermDefinition, "@prefix used on compact or relative IRI term")
 		}
 		prefix, isBool := prefixVal.(bool)
@@ -1008,7 +1027,7 @@ func (c *Context) ExpandIri(value string, relative bool, vocab bool, context map
 		return value, nil
 	}
 
-	if !IsKeyword(value) && ignoredKeywordPattern.Match([]byte(value)) {
+	if !IsKeyword(value) && ignoredKeywordPattern.MatchString(value) {
 		return "", nil
 	}
 
@@ -1313,8 +1332,8 @@ func (c *Context) CompactIri(iri string, value interface{}, relativeToVocab bool
 			// 2.11)
 
 			// 2.12)
-			idVal, hasId := valueMap["@id"]
-			if (typeLanguageValue == "@reverse" || typeLanguageValue == "@id") && isObject && hasId {
+			idVal, hasID := valueMap["@id"]
+			if (typeLanguageValue == "@reverse" || typeLanguageValue == "@id") && isObject && hasID {
 
 				if typeLanguageValue == "@reverse" {
 					preferredValues = append(preferredValues, "@reverse")
@@ -1871,8 +1890,8 @@ func (c *Context) Serialize() (map[string]interface{}, error) {
 		reverseVal, hasReverse := definition["@reverse"]
 		if !hasLang && !hasContainer && !hasType && (!hasReverse || reverseVal == false) {
 			var cid interface{}
-			id, hasId := definition["@id"]
-			if !hasId {
+			id, hasID := definition["@id"]
+			if !hasID {
 				cid = nil
 				ctx[term] = cid
 			} else if IsKeyword(id) {

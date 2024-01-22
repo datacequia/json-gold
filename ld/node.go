@@ -21,6 +21,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/piprate/json-gold/ld/internal/jsoncanonicalizer"
 )
 
 // Node is the value of a subject, predicate or object
@@ -57,12 +59,12 @@ func NewLiteral(value string, datatype string, language string) *Literal {
 }
 
 // GetValue returns the node's value.
-func (l Literal) GetValue() string {
+func (l *Literal) GetValue() string {
 	return l.Value
 }
 
 // Equal returns true id this node is equal to the given node.
-func (l Literal) Equal(n Node) bool {
+func (l *Literal) Equal(n Node) bool {
 	ol, ok := n.(*Literal)
 	if !ok {
 		return false
@@ -98,12 +100,12 @@ func NewIRI(iri string) *IRI {
 }
 
 // GetValue returns the node's value.
-func (iri IRI) GetValue() string {
+func (iri *IRI) GetValue() string {
 	return iri.Value
 }
 
 // Equal returns true id this node is equal to the given node.
-func (iri IRI) Equal(n Node) bool {
+func (iri *IRI) Equal(n Node) bool {
 	if oiri, ok := n.(*IRI); ok {
 		return iri.Value == oiri.Value
 	}
@@ -126,12 +128,12 @@ func NewBlankNode(attribute string) *BlankNode {
 }
 
 // GetValue returns the node's value.
-func (bn BlankNode) GetValue() string {
+func (bn *BlankNode) GetValue() string {
 	return bn.Attribute
 }
 
 // Equal returns true id this node is equal to the given node.
-func (bn BlankNode) Equal(n Node) bool {
+func (bn *BlankNode) Equal(n Node) bool {
 	if obn, ok := n.(*BlankNode); ok {
 		return bn.Attribute == obn.Attribute
 	}
@@ -157,8 +159,8 @@ func IsLiteral(node Node) bool {
 	return isLiteral
 }
 
-var patternInteger = regexp.MustCompile("^[\\-+]?[0-9]+$")
-var patternDouble = regexp.MustCompile("^(\\+|-)?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([Ee](\\+|-)?[0-9]+)?$")
+var patternInteger = regexp.MustCompile(`^[\-+]?\d+$`)
+var patternDouble = regexp.MustCompile(`^(\+|-)?(\d+(\.\d*)?|\.\d+)([Ee](\+|-)?\d+)?$`)
 
 // RdfToObject converts an RDF triple object to a JSON-LD object.
 func RdfToObject(n Node, useNativeTypes bool) (map[string]interface{}, error) {
@@ -204,7 +206,7 @@ func RdfToObject(n Node, useNativeTypes bool) (map[string]interface{}, error) {
 				d, _ := strconv.ParseFloat(value, 64)
 				if !math.IsNaN(d) && !math.IsInf(d, 0) {
 					if datatype == XSDInteger {
-						i := int(d)
+						i := int64(d)
 						if fmt.Sprintf("%d", i) == value {
 							rval["@value"] = i
 						}
@@ -279,9 +281,9 @@ func objectToRDF(item interface{}, issuer *IdentifierIssuer, graphName string, t
 				}
 			} else {
 				if datatype == nil {
-					return NewLiteral(fmt.Sprintf("%d", int(floatVal)), XSDInteger, ""), triples
+					return NewLiteral(fmt.Sprintf("%d", int64(floatVal)), XSDInteger, ""), triples
 				} else {
-					return NewLiteral(fmt.Sprintf("%d", int(floatVal)), datatype.(string), ""), triples
+					return NewLiteral(fmt.Sprintf("%d", int64(floatVal)), datatype.(string), ""), triples
 				}
 			}
 		} else if langVal, hasLang := itemMap["@language"]; hasLang {
@@ -297,8 +299,25 @@ func objectToRDF(item interface{}, issuer *IdentifierIssuer, graphName string, t
 				if datatype != RDFJSONLiteral {
 					return NewLiteral(value.(string), datatype.(string), ""), triples
 				} else {
-					// TODO: add JSON Canonicalization
-					return NewLiteral("JSON literals not supported", datatype.(string), ""), triples
+					var jsonLiteralValByte []byte
+					switch v := value.(type) {
+					case string:
+						jsonLiteralValByte = []byte(v)
+					case map[string]interface{}:
+						byteVal, err := json.Marshal(v)
+						if err != nil {
+							return NewLiteral("JSON Marshal error "+err.Error(), datatype.(string), ""), triples
+						}
+
+						jsonLiteralValByte = byteVal
+					}
+
+					canonicalJSON, err := jsoncanonicalizer.Transform(jsonLiteralValByte)
+					if err != nil {
+						return NewLiteral("JSON Canonicalization error "+err.Error(), datatype.(string), ""), triples
+					}
+
+					return NewLiteral(string(canonicalJSON), datatype.(string), ""), triples
 				}
 			}
 		}
@@ -309,7 +328,7 @@ func objectToRDF(item interface{}, issuer *IdentifierIssuer, graphName string, t
 		return parseList(item.(map[string]interface{})["@list"].([]interface{}), issuer, graphName, triples)
 	} else {
 		// convert string/node object to RDF
-		id := ""
+		var id string
 		if itemMap, isMap := item.(map[string]interface{}); isMap {
 			id = itemMap["@id"].(string)
 			if IsRelativeIri(id) {

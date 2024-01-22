@@ -17,9 +17,9 @@ package ld
 type Embed string
 
 const (
-	JsonLd_1_0       = "json-ld-1.0"
-	JsonLd_1_1       = "json-ld-1.1"
-	JsonLd_1_1_Frame = "json-ld-1.1-expand-frame"
+	JsonLd_1_0       = "json-ld-1.0"              //nolint:stylecheck
+	JsonLd_1_1       = "json-ld-1.1"              //nolint:stylecheck
+	JsonLd_1_1_Frame = "json-ld-1.1-expand-frame" //nolint:stylecheck
 
 	EmbedLast   = "@last"
 	EmbedAlways = "@always"
@@ -28,7 +28,7 @@ const (
 
 // JsonLdOptions type as specified in the JSON-LD-API specification:
 // http://www.w3.org/TR/json-ld-api/#the-jsonldoptions-type
-type JsonLdOptions struct {
+type JsonLdOptions struct { //nolint:stylecheck
 
 	// Base options: http://www.w3.org/TR/json-ld-api/#idl-def-JsonLdOptions
 
@@ -68,10 +68,11 @@ type JsonLdOptions struct {
 
 	// User hooks to Processor Events
 	Listener ProcessorListener
+	SafeMode      bool
 }
 
 // NewJsonLdOptions creates and returns new instance of JsonLdOptions with the given base.
-func NewJsonLdOptions(base string) *JsonLdOptions {
+func NewJsonLdOptions(base string) *JsonLdOptions { //nolint:stylecheck
 	return &JsonLdOptions{
 		Base:                  base,
 		CompactArrays:         true,
@@ -88,10 +89,14 @@ func NewJsonLdOptions(base string) *JsonLdOptions {
 		ProduceGeneralizedRdf: false,
 		InputFormat:           "",
 		Format:                "",
-		Algorithm:             "URGNA2012",
+		Algorithm:             AlgorithmURGNA2012,
 		UseNamespaces:         false,
 		OutputForm:            "",
+<<<<<<< HEAD
 		Listener:              nil,
+=======
+		SafeMode:              false,
+>>>>>>> 257ca0d016c1705dfc132c0dbe2041289971bfeb
 	}
 }
 
@@ -117,6 +122,10 @@ func (opt *JsonLdOptions) Copy() *JsonLdOptions {
 		Algorithm:             opt.Algorithm,
 		UseNamespaces:         opt.UseNamespaces,
 		OutputForm:            opt.OutputForm,
+<<<<<<< HEAD
 		Listener:              opt.Listener,
+=======
+		SafeMode:              opt.SafeMode,
+>>>>>>> 257ca0d016c1705dfc132c0dbe2041289971bfeb
 	}
 }

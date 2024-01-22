@@ -17,6 +17,7 @@ package ld
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"sort"
 	"strings"
@@ -145,7 +146,12 @@ func MergeValue(obj map[string]interface{}, key string, value interface{}) {
 
 // IsAbsoluteIri returns true if the given value is an absolute IRI, false if not.
 func IsAbsoluteIri(value string) bool {
-	return ParseURL(value).Protocol != ""
+	if strings.HasPrefix(value, "_:") {
+		return true
+	}
+
+	u, err := url.Parse(value)
+	return err == nil && u.IsAbs()
 }
 
 // IsSubject returns true if the given value is a subject with properties.
@@ -308,9 +314,10 @@ func isEmptyObject(v interface{}) bool {
 func RemovePreserve(ctx *Context, input interface{}, bnodesToClear []string, compactArrays bool) (interface{}, error) {
 
 	// recurse through arrays
-	if inputList, isList := input.([]interface{}); isList {
+	switch v := input.(type) {
+	case []interface{}:
 		output := make([]interface{}, 0)
-		for _, i := range inputList {
+		for _, i := range v {
 			result, err := RemovePreserve(ctx, i, bnodesToClear, compactArrays)
 			if err != nil {
 				return nil, err
@@ -321,9 +328,10 @@ func RemovePreserve(ctx *Context, input interface{}, bnodesToClear []string, com
 			}
 		}
 		input = output
-	} else if inputMap, isMap := input.(map[string]interface{}); isMap {
+	case map[string]interface{}:
+
 		// remove @preserve
-		if preserveVal, present := inputMap["@preserve"]; present {
+		if preserveVal, present := v["@preserve"]; present {
 			if preserveVal == "@null" {
 				return nil, nil
 			}
@@ -331,14 +339,14 @@ func RemovePreserve(ctx *Context, input interface{}, bnodesToClear []string, com
 		}
 
 		// skip @values
-		if _, hasValue := inputMap["@value"]; hasValue {
+		if _, hasValue := v["@value"]; hasValue {
 			return input, nil
 		}
 
 		// recurse through @lists
-		if listVal, hasList := inputMap["@list"]; hasList {
+		if listVal, hasList := v["@list"]; hasList {
 			var err error
-			inputMap["@list"], err = RemovePreserve(ctx, listVal, bnodesToClear, compactArrays)
+			v["@list"], err = RemovePreserve(ctx, listVal, bnodesToClear, compactArrays)
 			if err != nil {
 				return nil, err
 			}
@@ -350,10 +358,10 @@ func RemovePreserve(ctx *Context, input interface{}, bnodesToClear []string, com
 		if err != nil {
 			return nil, err
 		}
-		if id, hasID := inputMap[idAlias]; hasID {
+		if id, hasID := v[idAlias]; hasID {
 			for _, bnode := range bnodesToClear {
 				if id == bnode {
-					delete(inputMap, idAlias)
+					delete(v, idAlias)
 				}
 			}
 		}
@@ -362,7 +370,7 @@ func RemovePreserve(ctx *Context, input interface{}, bnodesToClear []string, com
 		if err != nil {
 			return nil, err
 		}
-		for prop, propVal := range inputMap {
+		for prop, propVal := range v {
 			result, err := RemovePreserve(ctx, propVal, bnodesToClear, compactArrays)
 			if err != nil {
 				return nil, err
@@ -373,7 +381,7 @@ func RemovePreserve(ctx *Context, input interface{}, bnodesToClear []string, com
 			if compactArrays && isList && len(resultList) == 1 && !isSetContainer && !isListContainer && prop != graphAlias {
 				result = resultList[0]
 			}
-			inputMap[prop] = result
+			v[prop] = result
 		}
 	}
 
@@ -408,9 +416,10 @@ func HasValue(subject interface{}, property string, value interface{}) bool {
 // array will be added.
 //
 // Options:
-//   [propertyIsArray] True if the property is always an array, False if not (default: False).
-//   [allowDuplicate] True to allow duplicates, False not to (uses a simple shallow comparison
-//   		of subject ID or value) (default: True).
+//
+//	[propertyIsArray] True if the property is always an array, False if not (default: False).
+//	[allowDuplicate] True to allow duplicates, False not to (uses a simple shallow comparison
+//			of subject ID or value) (default: True).
 func AddValue(subject interface{}, property string, value interface{}, propertyIsArray, valueAsArray, allowDuplicate,
 	prependValue bool) {
 

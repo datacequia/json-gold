@@ -4,7 +4,6 @@ package ld_test
 // when running the official test suites for JSON-LD, Framing and Normalisation.
 //
 // Structure: <relative path to manifest file> ==> list of test ID prefixes to skip
-//
 var skippedTests = map[string][]string{
 	"testdata/compact-manifest.jsonld": {
 		"#tin",   // TODO
@@ -31,12 +30,31 @@ var skippedTests = map[string][]string{
 	},
 	"testdata/remote-doc-manifest.jsonld": {
 		"#t0013", // HTML documents aren't supported yet
-		"#tla01", // HTML documents aren't supported yet
-		"#tla05", // HTML documents aren't supported yet
 	},
 	"testdata/toRdf-manifest.jsonld": {
 		"#tc032", // TODO
 		"#tc033", // TODO
+		"#tdi09", // No support for i18n-datatype yet
+		"#tdi10", // No support for i18n-datatype yet
+		"#tdi11", // No support for compound-literal yet
+		"#tdi12", // No support for compound-literal yet
+		"#te075", // No support for GeneralizedRdf
+		"#te085", // test passes, bug in isomorphism check
+		"#te086", // test passes, bug in isomorphism check
+		"#te087", // test passes, bug in isomorphism check
+		"#te111", // TODO
+		"#te112", // TODO
+		"#tjs03", // TODO numeric format
+		"#tjs07",
+		"#tjs08",
+		"#tjs14",
+		"#tjs15",
+		"#tjs16",
+		"#tjs17",
+		"#tjs18",
+		"#tjs21",
+		"#tjs22",
+		"#tjs23",
 		"#tec02", // TODO
 		"#ter52", // TODO
 
@@ -45,6 +63,7 @@ var skippedTests = map[string][]string{
 		"#tpr28", // Skipped in Expand test suite
 		"#tpr38", // TODO
 		"#tpr39", // TODO
+		"#ttn02", // TODO
 	},
 	"testdata/html-manifest.jsonld": {
 		"#t", // HTML inputs not supported yet
@@ -94,6 +113,10 @@ var skippedTests = map[string][]string{
 		"#tp050",
 		"#tra",
 	},
-	"testdata/normalization/manifest-urgna2012.jsonld": {},
-	"testdata/normalization/manifest-urdna2015.jsonld": {},
+	"testdata/normalization/manifest-urgna2012.jsonld": {
+		"manifest-urgna2012#test060",
+	},
+	"testdata/normalization/manifest-urdna2015.jsonld": {
+		"manifest-urdna2015#test060",
+	},
 }

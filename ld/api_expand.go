@@ -359,7 +359,11 @@ func (api *JsonLdApi) expandObject(activeCtx *Context, activeProperty string, ex
 		var expandedValue interface{}
 		// 7.3)
 		if expandedProperty == "" || (!strings.Contains(expandedProperty, ":") && !IsKeyword(expandedProperty)) {
-			continue
+			if activeCtx.options != nil && activeCtx.options.SafeMode {
+				return NewJsonLdError(InvalidProperty, "Dropping property that did not expand into an absolute IRI or keyword.")
+			} else {
+				continue
+			}
 		}
 		// 7.4)
 		if IsKeyword(expandedProperty) {
@@ -382,26 +386,27 @@ func (api *JsonLdApi) expandObject(activeCtx *Context, activeProperty string, ex
 						return err
 					}
 				} else if frameExpansion {
-					if valueMap, isMap := value.(map[string]interface{}); isMap {
-						if len(valueMap) != 0 {
+					switch v := value.(type) {
+					case map[string]interface{}:
+						if len(v) != 0 {
 							return NewJsonLdError(InvalidIDValue, "@id value must be a an empty object for framing")
 						}
-						expandedValue = Arrayify(value)
-					} else if valueList, isList := value.([]interface{}); isList {
+						expandedValue = []interface{}{v}
+					case []interface{}:
 						expandedValueList := make([]interface{}, 0)
-						for _, v := range valueList {
-							vString, isString := v.(string)
+						for _, listVal := range v {
+							vString, isString := listVal.(string)
 							if !isString {
 								return NewJsonLdError(InvalidIDValue, "@id value must be a string, an array of strings or an empty dictionary")
 							}
-							v, err := activeCtx.ExpandIri(vString, true, true, nil, nil)
+							vString, err = activeCtx.ExpandIri(vString, true, true, nil, nil)
 							if err != nil {
 								return err
 							}
-							expandedValueList = append(expandedValueList, v)
+							expandedValueList = append(expandedValueList, vString)
 						}
 						expandedValue = expandedValueList
-					} else {
+					default:
 						return NewJsonLdError(InvalidIDValue, "value of @id must be a string, an array of strings or an empty dictionary")
 					}
 				} else {

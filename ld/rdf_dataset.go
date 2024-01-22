@@ -20,6 +20,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"unicode/utf8"
 )
 
@@ -52,7 +53,7 @@ func NewQuad(subject Node, predicate Node, object Node, graph string) *Quad {
 }
 
 // Equal returns true if this quad is equal to the given quad.
-func (q Quad) Equal(o *Quad) bool {
+func (q *Quad) Equal(o *Quad) bool {
 	if o == nil {
 		return false
 	}
@@ -64,7 +65,7 @@ func (q Quad) Equal(o *Quad) bool {
 	return q.Subject.Equal(o.Subject) && q.Predicate.Equal(o.Predicate) && q.Object.Equal(o.Object)
 }
 
-func (q Quad) Valid() bool {
+func (q *Quad) Valid() bool {
 	if q.Subject != nil {
 		if InvalidNode(q.Subject) {
 			return false
@@ -291,7 +292,7 @@ func (ds *RDFDataset) GetQuads(graphName string) []*Quad {
 	return ds.Graphs[graphName]
 }
 
-var canonicalDoubleRegEx = regexp.MustCompile("(\\d)0*E\\+?0*(\\d)")
+var canonicalDoubleRegEx = regexp.MustCompile(`(\d)0*E\+?0*(\d)`)
 
 // GetCanonicalDouble returns a canonical string representation of a float64 number.
 func GetCanonicalDouble(v float64) string {
@@ -330,10 +331,10 @@ func validIRI(val string) bool {
 }
 
 /*
-  ===========
-  The URL validation logic below was borrowed from github.com/asaskevich/govalidator package.
-  The original code is distributed under MIT license. Copyright (c) 2014 Alex Saskevich
-  ===========
+===========
+The URL validation logic below was borrowed from github.com/asaskevich/govalidator package.
+The original code is distributed under MIT license. Copyright (c) 2014 Alex Saskevich
+===========
 */
 var (
 	IP           = `(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))`
@@ -344,7 +345,8 @@ var (
 	URLIP        = `([1-9]\d?|1\d\d|2[01]\d|22[0-3])(\.(1?\d{1,2}|2[0-4]\d|25[0-5])){2}(?:\.([0-9]\d?|1\d\d|2[0-4]\d|25[0-4]))`
 	URLSubdomain = `((www\.)|([a-zA-Z0-9]+([-_\.]?[a-zA-Z0-9])*[a-zA-Z0-9]\.[a-zA-Z0-9]+))`
 	URL          = `^` + URLSchema + `?` + URLUsername + `?` + `((` + URLIP + `|(\[` + IP + `\])|(([a-zA-Z0-9]([a-zA-Z0-9-_]+)?[a-zA-Z0-9]([-\.][a-zA-Z0-9]+)*)|(` + URLSubdomain + `?))?(([a-zA-Z\x{00a1}-\x{ffff}0-9]+-?-?)*[a-zA-Z\x{00a1}-\x{ffff}0-9]+)(?:\.([a-zA-Z\x{00a1}-\x{ffff}]{1,}))?))\.?` + URLPort + `?` + URLPath + `?$`
-	rxURL        = regexp.MustCompile(URL)
+	rxURL        *regexp.Regexp
+	onlyOnce     sync.Once
 )
 
 const maxURLRuneCount = 2083
@@ -352,6 +354,9 @@ const minURLRuneCount = 3
 
 // IsURL check if the string is an URL.
 func IsURL(str string) bool {
+	onlyOnce.Do(func() {
+		rxURL = regexp.MustCompile(URL)
+	})
 	if str == "" || utf8.RuneCountInString(str) >= maxURLRuneCount || len(str) <= minURLRuneCount || strings.HasPrefix(str, ".") {
 		return false
 	}

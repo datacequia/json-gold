@@ -23,7 +23,7 @@ type ErrorCode string
 
 // JsonLdError is a JSON-LD error as defined in the spec.
 // See the allowed values and error messages below.
-type JsonLdError struct {
+type JsonLdError struct { //nolint:stylecheck
 	Code    ErrorCode
 	Details interface{}
 }
@@ -78,13 +78,14 @@ const (
 	IRIConfusedWithPrefix       ErrorCode = "IRI confused with prefix"
 
 	// non spec related errors
-	SyntaxError    ErrorCode = "syntax error"
-	NotImplemented ErrorCode = "not implemented"
-	UnknownFormat  ErrorCode = "unknown format"
-	InvalidInput   ErrorCode = "invalid input"
-	ParseError     ErrorCode = "parse error"
-	IOError        ErrorCode = "io error"
-	UnknownError   ErrorCode = "unknown error"
+	SyntaxError     ErrorCode = "syntax error"
+	NotImplemented  ErrorCode = "not implemented"
+	UnknownFormat   ErrorCode = "unknown format"
+	InvalidInput    ErrorCode = "invalid input"
+	ParseError      ErrorCode = "parse error"
+	IOError         ErrorCode = "io error"
+	InvalidProperty ErrorCode = "invalid property"
+	UnknownError    ErrorCode = "unknown error"
 )
 
 func (e JsonLdError) Error() string {
@@ -94,7 +95,13 @@ func (e JsonLdError) Error() string {
 	return fmt.Sprintf("%v", e.Code)
 }
 
+// Unwrap returns JsonLdError.Details if it is an error, otherwise nil.
+func (e JsonLdError) Unwrap() error {
+	cause, _ := e.Details.(error)
+	return cause
+}
+
 // NewJsonLdError creates a new instance of JsonLdError.
-func NewJsonLdError(code ErrorCode, details interface{}) *JsonLdError {
+func NewJsonLdError(code ErrorCode, details interface{}) *JsonLdError { //nolint:stylecheck
 	return &JsonLdError{Code: code, Details: details}
 }
