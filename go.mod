@@ -13,4 +13,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/piprate/json-gold => github.com/datacequia/json-gold latest
+replace github.com/piprate/json-gold => github.com/datacequia/json-gold v0.0.0-20240122045857-1d172715c45d
